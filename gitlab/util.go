@@ -7,6 +7,14 @@ import (
 	gitlab "github.com/xanzy/go-gitlab"
 )
 
+var accessLevelID = map[string]gitlab.AccessLevelValue{
+	"guest":     gitlab.GuestPermissions,
+	"reporter":  gitlab.ReporterPermissions,
+	"developer": gitlab.DeveloperPermissions,
+	"master":    gitlab.MasterPermissions,
+	"owner":     gitlab.OwnerPermission,
+}
+
 // copied from ../github/util.go
 func validateValueFunc(values []string) schema.SchemaValidateFunc {
 	return func(v interface{}, k string) (we []string, errors []error) {
