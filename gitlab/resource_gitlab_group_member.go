@@ -3,6 +3,7 @@ package gitlab
 import (
 	"fmt"
 	"log"
+	"strconv"
 	"strings"
 
 	"github.com/hashicorp/terraform/helper/schema"
@@ -17,7 +18,7 @@ func resourceGitlabGroupMember() *schema.Resource {
 		Update: resourceGitlabGroupMemberUpdate,
 		Delete: resourceGitlabGroupMemberDelete,
 		Importer: &schema.ResourceImporter{
-			State: schema.ImportStatePassthrough,
+			State: resourceGitlabGroupMemberImport,
 		},
 
 		Schema: map[string]*schema.Schema{
@@ -64,13 +65,13 @@ func resourceGitlabGroupMember() *schema.Resource {
 	}
 }
 
-// var accessLevelID = map[string]gitlab.AccessLevelValue{
-// 	"guest":     gitlab.GuestPermissions,
-// 	"reporter":  gitlab.ReporterPermissions,
-// 	"developer": gitlab.DeveloperPermissions,
-// 	"master":    gitlab.MasterPermissions,
-// 	"owner":     gitlab.OwnerPermission,
-// }
+var accessLevel = map[gitlab.AccessLevelValue]string{
+	gitlab.GuestPermissions:     "guest",
+	gitlab.ReporterPermissions:  "reporter",
+	gitlab.DeveloperPermissions: "developer",
+	gitlab.MasterPermissions:    "master",
+	gitlab.OwnerPermission:      "owner",
+}
 
 func resourceGitlabGroupMemberCreate(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*gitlab.Client)
@@ -89,7 +90,7 @@ func resourceGitlabGroupMemberCreate(d *schema.ResourceData, meta interface{}) e
 		options.ExpiresAt = &expires_at
 	}
 
-	log.Printf("[DEBUG] create gitlab group member for %d in %s", user_id, group_id)
+	log.Printf("[DEBUG] create gitlab group member %d in %s", user_id, group_id)
 
 	group_member, _, err := client.GroupMembers.AddGroupMember(group_id, options)
 	if err != nil {
@@ -111,14 +112,13 @@ func resourceGitlabGroupMemberRead(d *schema.ResourceData, meta interface{}) err
 	group_member, resp, err := client.GroupMembers.GetGroupMember(group_id, user_id)
 	if err != nil {
 		if resp.StatusCode == 404 {
-			log.Printf("[WARN] removing group member %s for %s from state because it no longer exists in gitlab", d.Id(), group_id)
+			log.Printf("[WARN] removing group member %s in %s from state because it no longer exists in gitlab", d.Id(), group_id)
 			d.SetId("")
 			return nil
 		}
 		return err
 	}
 
-	// TODO: int to string
 	d.Set("access_level", group_member.AccessLevel)
 	if group_member.ExpiresAt != nil {
 		d.Set("expires_at", group_member.ExpiresAt.String())
@@ -152,7 +152,7 @@ func resourceGitlabGroupMemberUpdate(d *schema.ResourceData, meta interface{}) e
 		options.ExpiresAt = &expires_at
 	}
 
-	log.Printf("[DEBUG] update gitlab group member %s for %s", d.Id(), group_id)
+	log.Printf("[DEBUG] update gitlab group member %s in %s", d.Id(), group_id)
 
 	_, _, err := client.GroupMembers.EditGroupMember(group_id, user_id, options)
 	if err != nil {
@@ -178,4 +178,22 @@ func resourceGitlabGroupMemberDelete(d *schema.ResourceData, meta interface{}) e
 	d.SetId("")
 
 	return nil
+}
+
+func resourceGitlabGroupMemberImport(d *schema.ResourceData, m interface{}) ([]*schema.ResourceData, error) {
+	// Parse ID to get both user_id and group_id - Must be in user_id/group_id format
+	ids := strings.Split(d.Id(), "/")
+	user_id, err := strconv.Atoi(ids[0])
+	if err != nil {
+		fmt.Errorf("[ERROR] coulnd't parse user_id during import: %v", err)
+	}
+	group_id := ids[1]
+
+	d.Set("group_id", group_id)
+	d.Set("user_id", user_id)
+	d.SetId(fmt.Sprintf("%d", user_id))
+
+	log.Printf("[DEBUG] import gitlab group member %d from %s", user_id, group_id)
+
+	return []*schema.ResourceData{d}, nil
 }
