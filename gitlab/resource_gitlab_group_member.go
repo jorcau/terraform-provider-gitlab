@@ -65,14 +65,6 @@ func resourceGitlabGroupMember() *schema.Resource {
 	}
 }
 
-var accessLevel = map[gitlab.AccessLevelValue]string{
-	gitlab.GuestPermissions:     "guest",
-	gitlab.ReporterPermissions:  "reporter",
-	gitlab.DeveloperPermissions: "developer",
-	gitlab.MasterPermissions:    "master",
-	gitlab.OwnerPermission:      "owner",
-}
-
 func resourceGitlabGroupMemberCreate(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*gitlab.Client)
 
@@ -119,7 +111,7 @@ func resourceGitlabGroupMemberRead(d *schema.ResourceData, meta interface{}) err
 		return err
 	}
 
-	d.Set("access_level", group_member.AccessLevel)
+	d.Set("access_level", accessLevel[group_member.AccessLevel])
 	if group_member.ExpiresAt != nil {
 		d.Set("expires_at", group_member.ExpiresAt.String())
 	}

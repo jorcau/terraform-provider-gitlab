@@ -15,6 +15,14 @@ var accessLevelID = map[string]gitlab.AccessLevelValue{
 	"owner":     gitlab.OwnerPermission,
 }
 
+var accessLevel = map[gitlab.AccessLevelValue]string{
+	gitlab.GuestPermissions:     "guest",
+	gitlab.ReporterPermissions:  "reporter",
+	gitlab.DeveloperPermissions: "developer",
+	gitlab.MasterPermissions:    "master",
+	gitlab.OwnerPermission:      "owner",
+}
+
 // copied from ../github/util.go
 func validateValueFunc(values []string) schema.SchemaValidateFunc {
 	return func(v interface{}, k string) (we []string, errors []error) {
