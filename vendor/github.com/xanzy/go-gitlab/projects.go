@@ -646,6 +646,21 @@ func (s *ProjectsService) ShareProjectWithGroup(pid interface{}, opt *ShareWithG
 	return s.client.Do(req, nil)
 }
 
+func (s *ProjectsService) UnshareProjectWithGroup(pid interface{}, opt *ShareWithGroupOptions, options ...OptionFunc) (*Response, error) {
+	project, err := parseID(pid)
+	if err != nil {
+		return nil, err
+	}
+	u := fmt.Sprintf("projects/%s/share/%d", url.QueryEscape(project), opt.GroupID)
+
+	req, err := s.client.NewRequest("DELETE", u, opt, options)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.client.Do(req, nil)
+}
+
 // ProjectMember represents a project member.
 //
 // GitLab API docs:
