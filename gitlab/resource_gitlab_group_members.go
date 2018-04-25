@@ -3,6 +3,7 @@ package gitlab
 import (
 	"fmt"
 	"log"
+	"sort"
 	"strings"
 
 	"github.com/hashicorp/terraform/helper/schema"
@@ -253,25 +254,25 @@ func getGroupMembersUpdates(newMembers []*gitlab.AddGroupMemberOptions,
 
 		// Check if member in tf config already exists on gitlab
 		oldMember, index, err := findGroupMember(*newMember.UserID, oldMembers)
+
+		// If it doesn't exist it must be added
 		if err != nil {
-			// If it doesn't exist it must be added
 			groupMembersToAdd = append(groupMembersToAdd, newGroupMemberOptions)
 			continue
 		}
 
-		// If there's a change, it must be updated
+		// If it exists but there's a change, it must be updated
 		if (*newMember.AccessLevel != oldMember.AccessLevel) ||
-			(oldMember.ExpiresAt != nil && (*newMember.ExpiresAt != oldMember.ExpiresAt.String())) {
+			(oldMember.ExpiresAt != nil && (*newMember.ExpiresAt != oldMember.ExpiresAt.String()) ||
+				(oldMember.ExpiresAt == nil && *newMember.ExpiresAt != "")) {
 			groupMembersToUpdate = append(groupMembersToUpdate, newGroupMemberOptions)
 		}
 
-		// Remove treated member from oldMembers list
+		// Remove existing member from existing members list
 		oldMembers = append(oldMembers[:index], oldMembers[index+1:]...)
-		log.Printf("\n\n\nOLD MEMBERS LIST\n%v", oldMembers)
 	}
 
-	// Members still present in oldMembers are not present in tf config and
-	// thus must be removed
+	// Members still present in existing members list must be removed
 
 	return groupMembersToAdd, groupMembersToUpdate, oldMembers
 }
@@ -300,6 +301,12 @@ func flattenGitlabGroupMembers(groupMembers []*gitlab.GroupMember) []interface{}
 
 		groupMembersList = append(groupMembersList, values)
 	}
+
+	// Sort by id in ascendant order
+	sort.Slice(groupMembersList, func(i, j int) bool {
+		return groupMembersList[i].(map[string]interface{})["id"].(int) <
+			groupMembersList[j].(map[string]interface{})["id"].(int)
+	})
 
 	return groupMembersList
 }
