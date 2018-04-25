@@ -3,7 +3,6 @@ package gitlab
 import (
 	"fmt"
 	"log"
-	"sort"
 	"strings"
 
 	"github.com/hashicorp/terraform/helper/schema"
@@ -299,14 +298,10 @@ func flattenGitlabGroupMembers(groupMembers []*gitlab.GroupMember) []interface{}
 			values["email"] = groupMember.Email
 		}
 
-		groupMembersList = append(groupMembersList, values)
+		// Prepend in order to get group members from the first added
+		// to the last (and get cleaner plan diff)
+		groupMembersList = append([]interface{}{values}, groupMembersList...)
 	}
-
-	// Sort by id in ascendant order
-	sort.Slice(groupMembersList, func(i, j int) bool {
-		return groupMembersList[i].(map[string]interface{})["id"].(int) <
-			groupMembersList[j].(map[string]interface{})["id"].(int)
-	})
 
 	return groupMembersList
 }
