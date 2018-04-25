@@ -80,19 +80,19 @@ type groupMemberAllOptions struct {
 func resourceGitlabGroupMembersCreate(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*gitlab.Client)
 
-	groupId := d.Get("group_id").(string)
+	groupID := d.Get("group_id").(string)
 	groupMembersOptions := expandGitlabAddGroupMembersOptions(d.Get("members").([]interface{}))
 
 	for _, groupMemberOptions := range groupMembersOptions {
-		log.Printf("[DEBUG] create gitlab group member %d in %s", groupMemberOptions.UserID, groupId)
+		log.Printf("[DEBUG] create gitlab group member %d in %s", groupMemberOptions.UserID, groupID)
 
-		_, _, err := client.GroupMembers.AddGroupMember(groupId, groupMemberOptions)
+		_, _, err := client.GroupMembers.AddGroupMember(groupID, groupMemberOptions)
 		if err != nil {
 			return err
 		}
 	}
 
-	d.SetId(groupId)
+	d.SetId(groupID)
 
 	return resourceGitlabGroupMembersRead(d, meta)
 }
@@ -121,12 +121,12 @@ func resourceGitlabGroupMembersRead(d *schema.ResourceData, meta interface{}) er
 func resourceGitlabGroupMembersUpdate(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*gitlab.Client)
 
-	groupId := d.Get("group_id")
-	oldMembers, resp, err := client.Groups.ListGroupMembers(groupId, nil)
+	groupID := d.Get("group_id")
+	oldMembers, resp, err := client.Groups.ListGroupMembers(groupID, nil)
 	if err != nil {
 		if resp.StatusCode == 404 {
 			d.SetId("")
-			return fmt.Errorf("[WARN] removing all group members in %s from state because group no longer exists in gitlab", groupId)
+			return fmt.Errorf("[WARN] removing all group members in %s from state because group no longer exists in gitlab", groupID)
 		}
 		return err
 	}
@@ -137,9 +137,9 @@ func resourceGitlabGroupMembersUpdate(d *schema.ResourceData, meta interface{}) 
 
 	// Create new group members
 	for _, groupMember := range groupMembersToAdd {
-		log.Printf("[DEBUG] create gitlab group member %d in %s", groupMember.addOption.UserID, groupId)
+		log.Printf("[DEBUG] create gitlab group member %d in %s", groupMember.addOption.UserID, groupID)
 
-		_, _, err := client.GroupMembers.AddGroupMember(groupId, groupMember.addOption)
+		_, _, err := client.GroupMembers.AddGroupMember(groupID, groupMember.addOption)
 		if err != nil {
 			return err
 		}
@@ -147,9 +147,9 @@ func resourceGitlabGroupMembersUpdate(d *schema.ResourceData, meta interface{}) 
 
 	// Update existing group members
 	for _, groupMember := range groupMembersToUpdate {
-		log.Printf("[DEBUG] update gitlab group member %d in %s", groupMember.addOption.UserID, groupId)
+		log.Printf("[DEBUG] update gitlab group member %d in %s", groupMember.addOption.UserID, groupID)
 
-		_, _, err := client.GroupMembers.EditGroupMember(groupId, *groupMember.addOption.UserID, groupMember.editOption)
+		_, _, err := client.GroupMembers.EditGroupMember(groupID, *groupMember.addOption.UserID, groupMember.editOption)
 		if err != nil {
 			return err
 		}
@@ -161,13 +161,13 @@ func resourceGitlabGroupMembersUpdate(d *schema.ResourceData, meta interface{}) 
 func resourceGitlabGroupMembersDelete(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*gitlab.Client)
 
-	groupId := d.Get("group_id").(string)
+	groupID := d.Get("group_id").(string)
 	groupMembers := expandGitlabAddGroupMembersOptions(d.Get("members").([]interface{}))
 
 	for _, groupMember := range groupMembers {
-		log.Printf("[DEBUG] delete group member %d from %s", groupMember.UserID, groupId)
+		log.Printf("[DEBUG] delete group member %d from %s", groupMember.UserID, groupID)
 
-		_, err := client.GroupMembers.RemoveGroupMember(groupId, *groupMember.UserID)
+		_, err := client.GroupMembers.RemoveGroupMember(groupID, *groupMember.UserID)
 		if err != nil {
 			return err
 		}
@@ -183,12 +183,12 @@ func expandGitlabAddGroupMembersOptions(d []interface{}) []*gitlab.AddGroupMembe
 
 	for _, config := range d {
 		data := config.(map[string]interface{})
-		userId := data["id"].(int)
+		userID := data["id"].(int)
 		accessLevel := accessLevelID[strings.ToLower(data["access_level"].(string))]
 		expiresAt := data["expires_at"].(string)
 
 		groupMemberOption := &gitlab.AddGroupMemberOptions{
-			UserID:      &userId,
+			UserID:      &userID,
 			AccessLevel: &accessLevel,
 			ExpiresAt:   &expiresAt,
 		}

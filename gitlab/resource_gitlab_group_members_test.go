@@ -46,7 +46,7 @@ func TestAccGitlabGroupMember_basic(t *testing.T) {
 	})
 }
 
-func testAccCheckGitlabGroupMemberExists(n string, group_member *gitlab.GroupMember) resource.TestCheckFunc {
+func testAccCheckGitlabGroupMemberExists(n string, groupMember *gitlab.GroupMember) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		rs, ok := s.RootModule().Resources[n]
 		conn := testAccProvider.Meta().(*gitlab.Client)
@@ -70,7 +70,7 @@ func testAccCheckGitlabGroupMemberExists(n string, group_member *gitlab.GroupMem
 			return err
 		}
 
-		*group_member = *gotGroupMember
+		*groupMember = *gotGroupMember
 		return nil
 	}
 }
@@ -80,19 +80,19 @@ type testAccGitlabGroupMemberExpectedAttributes struct {
 	ExpiresAt   string
 }
 
-func testAccCheckGitlabGroupMemberAttributes(group_member *gitlab.GroupMember, want *testAccGitlabGroupMemberExpectedAttributes) resource.TestCheckFunc {
+func testAccCheckGitlabGroupMemberAttributes(groupMember *gitlab.GroupMember, want *testAccGitlabGroupMemberExpectedAttributes) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 
-		access_level_id, ok := accessLevel[group_member.AccessLevel]
+		accessLevelID, ok := accessLevel[groupMember.AccessLevel]
 		if !ok {
-			return fmt.Errorf("Invalid access level '%s'", access_level_id)
+			return fmt.Errorf("Invalid access level '%s'", accessLevelID)
 		}
-		if access_level_id != want.AccessLevel {
-			return fmt.Errorf("got access level %s; want %s", access_level_id, want.AccessLevel)
+		if accessLevelID != want.AccessLevel {
+			return fmt.Errorf("got access level %s; want %s", accessLevelID, want.AccessLevel)
 		}
 
-		if (group_member.ExpiresAt != nil) && (group_member.ExpiresAt.String() != want.ExpiresAt) {
-			return fmt.Errorf("got expires at %q; want %q", group_member.ExpiresAt, want.ExpiresAt)
+		if (groupMember.ExpiresAt != nil) && (groupMember.ExpiresAt.String() != want.ExpiresAt) {
+			return fmt.Errorf("got expires at %q; want %q", groupMember.ExpiresAt, want.ExpiresAt)
 		}
 
 		return nil
@@ -114,7 +114,7 @@ func testAccCheckGitlabGroupMemberDestroy(s *terraform.State) error {
 		gotMembership, resp, err := conn.GroupMembers.GetGroupMember(groupID, userIDI)
 		if err != nil {
 			if gotMembership != nil && fmt.Sprintf("%d", gotMembership.AccessLevel) == rs.Primary.Attributes["access_level"] {
-				return fmt.Errorf("Group still has member.")
+				return fmt.Errorf("group still has member")
 			}
 			return nil
 		}
