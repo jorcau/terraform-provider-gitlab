@@ -112,8 +112,7 @@ func resourceGitlabGroupMembersRead(d *schema.ResourceData, meta interface{}) er
 	}
 
 	d.Set("members", flattenGitlabGroupMembers(groupMembers))
-	d.Set("group_id", d.Get("group_id").(string))
-	// d.SetId(d.Get("group_id").(string))
+	d.Set("group_id", d.Id())
 
 	return nil
 }
@@ -133,7 +132,7 @@ func resourceGitlabGroupMembersUpdate(d *schema.ResourceData, meta interface{}) 
 
 	newMembers := expandGitlabAddGroupMembersOptions(d.Get("members").([]interface{}))
 
-	groupMembersToAdd, groupMembersToUpdate := getGroupMembersUpdates(newMembers, oldMembers)
+	groupMembersToAdd, groupMembersToUpdate, groupMemberToDelete := getGroupMembersUpdates(newMembers, oldMembers)
 
 	// Create new group members
 	for _, groupMember := range groupMembersToAdd {
@@ -150,6 +149,16 @@ func resourceGitlabGroupMembersUpdate(d *schema.ResourceData, meta interface{}) 
 		log.Printf("[DEBUG] update gitlab group member %d in %s", groupMember.addOption.UserID, groupID)
 
 		_, _, err := client.GroupMembers.EditGroupMember(groupID, *groupMember.addOption.UserID, groupMember.editOption)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Remove group members not present in tf config
+	for _, groupMember := range groupMemberToDelete {
+		log.Printf("[DEBUG] delete group member %d from %s", groupMember.ID, groupID)
+
+		_, err := client.GroupMembers.RemoveGroupMember(groupID, groupMember.ID)
 		if err != nil {
 			return err
 		}
@@ -229,10 +238,12 @@ func findGroupMember(id int, groupMembers []*gitlab.GroupMember) (gitlab.GroupMe
 }
 
 func getGroupMembersUpdates(newMembers []*gitlab.AddGroupMemberOptions,
-	oldMembers []*gitlab.GroupMember) ([]*groupMemberAllOptions, []*groupMemberAllOptions) {
+	oldMembers []*gitlab.GroupMember) ([]*groupMemberAllOptions,
+	[]*groupMemberAllOptions, []*gitlab.GroupMember) {
 	groupMembersToUpdate := []*groupMemberAllOptions{}
 	groupMembersToAdd := []*groupMemberAllOptions{}
 
+	// Iterate through all members in tf config
 	for _, newMember := range newMembers {
 		newGroupMemberOptions := &groupMemberAllOptions{newMember,
 			&gitlab.EditGroupMemberOptions{
@@ -240,8 +251,10 @@ func getGroupMembersUpdates(newMembers []*gitlab.AddGroupMemberOptions,
 				ExpiresAt:   newMember.ExpiresAt,
 			}}
 
+		// Check if member in tf config already exists on gitlab
 		oldMember, index, err := findGroupMember(*newMember.UserID, oldMembers)
 		if err != nil {
+			// If it doesn't exist it must be added
 			groupMembersToAdd = append(groupMembersToAdd, newGroupMemberOptions)
 			continue
 		}
@@ -252,13 +265,15 @@ func getGroupMembersUpdates(newMembers []*gitlab.AddGroupMemberOptions,
 			groupMembersToUpdate = append(groupMembersToUpdate, newGroupMemberOptions)
 		}
 
-		// Remove oldMember from oldMembers list
-		oldMembers = append(oldMembers[:index], oldMembers[index:]...)
+		// Remove treated member from oldMembers list
+		oldMembers = append(oldMembers[:index], oldMembers[index+1:]...)
+		log.Printf("\n\n\nOLD MEMBERS LIST\n%v", oldMembers)
 	}
 
-	// TODO: if oldmembers != empty
+	// Members still present in oldMembers are not present in tf config and
+	// thus must be removed
 
-	return groupMembersToAdd, groupMembersToUpdate
+	return groupMembersToAdd, groupMembersToUpdate, oldMembers
 }
 
 func flattenGitlabGroupMembers(groupMembers []*gitlab.GroupMember) []interface{} {
@@ -288,16 +303,3 @@ func flattenGitlabGroupMembers(groupMembers []*gitlab.GroupMember) []interface{}
 
 	return groupMembersList
 }
-
-// func groupMemberError(int errCode) error {
-// 	errMessage := ""
-//
-// 	switch errCode {
-// 	case 404:
-// 		errMessage = "[WARN]"
-// 	case 403:
-// 		errMessage = "[WARN]"
-// 	}
-//
-// 	return
-// }
