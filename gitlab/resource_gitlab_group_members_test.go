@@ -9,7 +9,7 @@ import (
 )
 
 func TestAccGitlabGroupMembers_basic(t *testing.T) {
-	resourceName := "gitlab_group_members.foo"
+	resourceName := "gitlab_group_members.test-group-members"
 	rInt := acctest.RandInt()
 
 	resource.Test(t, resource.TestCase{PreCheck: func() { testAccPreCheck(t) },
@@ -18,24 +18,24 @@ func TestAccGitlabGroupMembers_basic(t *testing.T) {
 			{
 				Config: testAccGitlabGroupMembersConfig(rInt),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "members.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "members.0.access_level", "developer"),
+					resource.TestCheckResourceAttr(resourceName, "members.#", "2"),
+					resource.TestCheckResourceAttr(resourceName, "members.1.access_level", "developer"),
 				),
 			},
 			{
 				Config: testAccGitlabGroupMembersUpdateConfig(rInt),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "members.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "members.0.access_level", "guest"),
-					resource.TestCheckResourceAttr(resourceName, "members.0.expires_at", "2099-01-01"),
+					resource.TestCheckResourceAttr(resourceName, "members.#", "2"),
+					resource.TestCheckResourceAttr(resourceName, "members.1.access_level", "guest"),
+					resource.TestCheckResourceAttr(resourceName, "members.1.expires_at", "2099-01-01"),
 				),
 			},
 			{
 				Config: testAccGitlabGroupMembersConfig(rInt),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "members.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "members.0.access_level", "developer"),
-					resource.TestCheckResourceAttr(resourceName, "members.0.expires_at", ""),
+					resource.TestCheckResourceAttr(resourceName, "members.#", "2"),
+					resource.TestCheckResourceAttr(resourceName, "members.1.access_level", "developer"),
+					resource.TestCheckResourceAttr(resourceName, "members.1.expires_at", ""),
 				),
 			},
 		},
@@ -44,27 +44,30 @@ func TestAccGitlabGroupMembers_basic(t *testing.T) {
 
 func testAccGitlabGroupMembersConfig(rInt int) string {
 	return fmt.Sprintf(`
-resource "gitlab_group_members" "foo" {
-  group_id     = "${gitlab_group.foo.id}"
-  members      = [
-	{
-		id      	 = "${gitlab_user.test.id}"
-		access_level = "developer"
-		expires_at   = "2099-01-01"
-	}
+resource "gitlab_group_members" "test-group-members" {
+	group_id       = "${gitlab_group.test-group.id}"
+	group_owner_id = 2
+	access_level   = "developer"
+
+  members  = [
+		{
+      id           = 2
+      access_level = "owner"
+		},
+    {
+      id           = "${gitlab_user.test-user.id}"
+    }
   ]
 }
 
-resource "gitlab_group" "foo" {
-  name                   = "bar-name-%d"
-  path                   = "bar-path-%d"
-  description            = "Terraform acceptance tests - group member"
-  lfs_enabled            = false
-  request_access_enabled = true
-  visibility_level       = "public"
+resource "gitlab_group" "test-group" {
+  name             = "bar-name-%d"
+  path             = "bar-path-%d"
+  description      = "Terraform acceptance tests - group members"
+  visibility_level = "public"
 }
 
-resource "gitlab_user" "test" {
+resource "gitlab_user" "test-user" {
   name     = "foo%d"
   username = "listest%d"
   password = "test%dtt"
@@ -75,27 +78,31 @@ resource "gitlab_user" "test" {
 
 func testAccGitlabGroupMembersUpdateConfig(rInt int) string {
 	return fmt.Sprintf(`
-resource "gitlab_group_members" "foo" {
-  group_id     = "${gitlab_group.foo.id}"
-  members      = [
-	  {
-		id      = "${gitlab_user.test.id}"
-		access_level = "guest"
-		expires_at   = "2099-01-01"
-	  }
+resource "gitlab_group_members" "test-group-members" {
+	group_id       = "${gitlab_group.test-group.id}"
+	group_owner_id = 2
+	access_level   = "guest"
+
+  members  = [
+		{
+      id           = 2
+      access_level = "owner"
+		},
+    {
+      id = "${gitlab_user.test-user.id}"
+      expires_at   = "2099-01-01"
+    }
   ]
 }
 
-resource "gitlab_group" "foo" {
-  name                   = "bar-name-%d"
-  path                   = "bar-path-%d"
-  description            = "Terraform acceptance tests - group member"
-  lfs_enabled            = false
-  request_access_enabled = true
-  visibility_level       = "public"
+resource "gitlab_group" "test-group" {
+  name             = "bar-name-%d"
+  path             = "bar-path-%d"
+  description      = "Terraform acceptance tests - group members"
+  visibility_level = "public"
 }
 
-resource "gitlab_user" "test" {
+resource "gitlab_user" "test-user" {
   name     = "foo%d"
   username = "listest%d"
   password = "test%dtt"
