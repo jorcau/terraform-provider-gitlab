@@ -188,6 +188,11 @@ func resourceGitlabGroupMembersUpdate(d *schema.ResourceData, meta interface{}) 
 	for _, groupMember := range groupMemberToDelete {
 		log.Printf("[DEBUG] delete group member %d from %s", groupMember.ID, groupID)
 
+		if groupMember.AccessLevel == accessLevelID["owner"] {
+			log.Printf("[WARN] can't delete group member with \"owner\" access level")
+			continue
+		}
+
 		_, err := client.GroupMembers.RemoveGroupMember(groupID, groupMember.ID)
 		if err != nil {
 			return err
@@ -205,6 +210,11 @@ func resourceGitlabGroupMembersDelete(d *schema.ResourceData, meta interface{}) 
 
 	for _, groupMember := range groupMembers {
 		log.Printf("[DEBUG] delete group member %d from %s", groupMember.UserID, groupID)
+
+		if *groupMember.AccessLevel == accessLevelID["owner"] {
+			log.Printf("[WARN] can't delete group member with \"owner\" access level")
+			continue
+		}
 
 		_, err := client.GroupMembers.RemoveGroupMember(groupID, *groupMember.UserID)
 		if err != nil {
