@@ -26,6 +26,21 @@ func resourceGitlabGroupMembers() *schema.Resource {
 				Required: true,
 				ForceNew: true,
 			},
+			"group_owner_id": {
+				Type:     schema.TypeInt,
+				Optional: true,
+			},
+			"access_level": {
+				Type:     schema.TypeString,
+				Required: true,
+				ValidateFunc: validation.StringInSlice(
+					[]string{"guest", "reporter", "developer", "master", "owner"}, true),
+			},
+			"expires_at": {
+				Type:     schema.TypeString,
+				Optional: true,
+				Default:  "",
+			},
 			"members": {
 				Type: schema.TypeList,
 				Elem: &schema.Resource{
@@ -36,13 +51,15 @@ func resourceGitlabGroupMembers() *schema.Resource {
 						},
 						"access_level": {
 							Type:     schema.TypeString,
-							Required: true,
+							Optional: true,
 							ValidateFunc: validation.StringInSlice(
 								[]string{"guest", "reporter", "developer", "master", "owner"}, true),
+							DiffSuppressFunc: suppressDiffMembersAccessLevel(),
 						},
 						"expires_at": {
-							Type:     schema.TypeString,
-							Optional: true,
+							Type:             schema.TypeString,
+							Optional:         true,
+							DiffSuppressFunc: suppressDiffMembersExpiresAt(),
 						},
 						"created_at": {
 							Type:     schema.TypeString,
@@ -72,21 +89,30 @@ func resourceGitlabGroupMembers() *schema.Resource {
 	}
 }
 
-type groupMemberAllOptions struct {
-	addOption  *gitlab.AddGroupMemberOptions
-	editOption *gitlab.EditGroupMemberOptions
-}
-
 func resourceGitlabGroupMembersCreate(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*gitlab.Client)
 
 	groupID := d.Get("group_id").(string)
-	groupMembersOptions := expandGitlabAddGroupMembersOptions(d.Get("members").([]interface{}))
+	groupOwnerID := d.Get("group_owner_id").(int)
+	groupMembers := expandGitlabAddGroupMembersOptions(d)
 
-	for _, groupMemberOptions := range groupMembersOptions {
-		log.Printf("[DEBUG] create gitlab group member %d in %s", groupMemberOptions.UserID, groupID)
+	for _, groupMember := range groupMembers {
+		log.Printf("[DEBUG] create gitlab group member %d in %s", groupMember.UserID, groupID)
 
-		_, _, err := client.GroupMembers.AddGroupMember(groupID, groupMemberOptions)
+		// Group owner is already existing and must be updated, not added
+		if groupOwnerID == *groupMember.UserID {
+			_, _, err := client.GroupMembers.EditGroupMember(groupID, *groupMember.UserID,
+				&gitlab.EditGroupMemberOptions{
+					AccessLevel: groupMember.AccessLevel,
+					ExpiresAt:   groupMember.ExpiresAt,
+				})
+			if err != nil {
+				return err
+			}
+			continue
+		}
+
+		_, _, err := client.GroupMembers.AddGroupMember(groupID, groupMember)
 		if err != nil {
 			return err
 		}
@@ -130,15 +156,15 @@ func resourceGitlabGroupMembersUpdate(d *schema.ResourceData, meta interface{}) 
 		return err
 	}
 
-	newMembers := expandGitlabAddGroupMembersOptions(d.Get("members").([]interface{}))
+	newMembers := expandGitlabAddGroupMembersOptions(d)
 
 	groupMembersToAdd, groupMembersToUpdate, groupMemberToDelete := getGroupMembersUpdates(newMembers, oldMembers)
 
 	// Create new group members
 	for _, groupMember := range groupMembersToAdd {
-		log.Printf("[DEBUG] create gitlab group member %d in %s", groupMember.addOption.UserID, groupID)
+		log.Printf("[DEBUG] create gitlab group member %d in %s", groupMember.UserID, groupID)
 
-		_, _, err := client.GroupMembers.AddGroupMember(groupID, groupMember.addOption)
+		_, _, err := client.GroupMembers.AddGroupMember(groupID, groupMember)
 		if err != nil {
 			return err
 		}
@@ -146,9 +172,13 @@ func resourceGitlabGroupMembersUpdate(d *schema.ResourceData, meta interface{}) 
 
 	// Update existing group members
 	for _, groupMember := range groupMembersToUpdate {
-		log.Printf("[DEBUG] update gitlab group member %d in %s", groupMember.addOption.UserID, groupID)
+		log.Printf("[DEBUG] update gitlab group member %d in %s", groupMember.UserID, groupID)
 
-		_, _, err := client.GroupMembers.EditGroupMember(groupID, *groupMember.addOption.UserID, groupMember.editOption)
+		_, _, err := client.GroupMembers.EditGroupMember(groupID, *groupMember.UserID,
+			&gitlab.EditGroupMemberOptions{
+				AccessLevel: groupMember.AccessLevel,
+				ExpiresAt:   groupMember.ExpiresAt,
+			})
 		if err != nil {
 			return err
 		}
@@ -171,7 +201,7 @@ func resourceGitlabGroupMembersDelete(d *schema.ResourceData, meta interface{}) 
 	client := meta.(*gitlab.Client)
 
 	groupID := d.Get("group_id").(string)
-	groupMembers := expandGitlabAddGroupMembersOptions(d.Get("members").([]interface{}))
+	groupMembers := expandGitlabAddGroupMembersOptions(d)
 
 	for _, groupMember := range groupMembers {
 		log.Printf("[DEBUG] delete group member %d from %s", groupMember.UserID, groupID)
@@ -187,41 +217,33 @@ func resourceGitlabGroupMembersDelete(d *schema.ResourceData, meta interface{}) 
 	return nil
 }
 
-func expandGitlabAddGroupMembersOptions(d []interface{}) []*gitlab.AddGroupMemberOptions {
+func expandGitlabAddGroupMembersOptions(d *schema.ResourceData) []*gitlab.AddGroupMemberOptions {
+	groupMembers := d.Get("members").([]interface{})
 	groupMemberOptions := []*gitlab.AddGroupMemberOptions{}
 
-	for _, config := range d {
+	for _, config := range groupMembers {
 		data := config.(map[string]interface{})
 		userID := data["id"].(int)
-		accessLevel := accessLevelID[strings.ToLower(data["access_level"].(string))]
-		expiresAt := data["expires_at"].(string)
 
 		groupMemberOption := &gitlab.AddGroupMemberOptions{
-			UserID:      &userID,
-			AccessLevel: &accessLevel,
-			ExpiresAt:   &expiresAt,
+			UserID: &userID,
+		}
+
+		if val := data["access_level"].(string); val != "" {
+			groupMemberOption.AccessLevel = gitlab.AccessLevel(
+				accessLevelID[strings.ToLower(val)])
+		} else {
+			groupMemberOption.AccessLevel = gitlab.AccessLevel(
+				accessLevelID[strings.ToLower(d.Get("access_level").(string))])
+		}
+
+		if val := data["expires_at"].(string); val != "" {
+			groupMemberOption.ExpiresAt = gitlab.String(val)
+		} else {
+			groupMemberOption.ExpiresAt = gitlab.String(d.Get("expires_at").(string))
 		}
 
 		groupMemberOptions = append(groupMemberOptions, groupMemberOption)
-	}
-
-	return groupMemberOptions
-}
-
-func expandGitlabEditGroupMembersOptions(d []interface{}) *[]gitlab.EditGroupMemberOptions {
-	groupMemberOptions := &[]gitlab.EditGroupMemberOptions{}
-
-	for _, config := range d {
-		data := config.(map[string]interface{})
-		accessLevel := accessLevelID[strings.ToLower(data["access_level"].(string))]
-		expiresAt := data["expires_at"].(string)
-
-		groupMemberOption := gitlab.EditGroupMemberOptions{
-			AccessLevel: &accessLevel,
-			ExpiresAt:   &expiresAt,
-		}
-
-		*groupMemberOptions = append(*groupMemberOptions, groupMemberOption)
 	}
 
 	return groupMemberOptions
@@ -238,33 +260,30 @@ func findGroupMember(id int, groupMembers []*gitlab.GroupMember) (gitlab.GroupMe
 }
 
 func getGroupMembersUpdates(newMembers []*gitlab.AddGroupMemberOptions,
-	oldMembers []*gitlab.GroupMember) ([]*groupMemberAllOptions,
-	[]*groupMemberAllOptions, []*gitlab.GroupMember) {
-	groupMembersToUpdate := []*groupMemberAllOptions{}
-	groupMembersToAdd := []*groupMemberAllOptions{}
+	oldMembers []*gitlab.GroupMember) ([]*gitlab.AddGroupMemberOptions,
+	[]*gitlab.AddGroupMemberOptions, []*gitlab.GroupMember) {
+	groupMembersToUpdate := []*gitlab.AddGroupMemberOptions{}
+	groupMembersToAdd := []*gitlab.AddGroupMemberOptions{}
 
 	// Iterate through all members in tf config
 	for _, newMember := range newMembers {
-		newGroupMemberOptions := &groupMemberAllOptions{newMember,
-			&gitlab.EditGroupMemberOptions{
-				AccessLevel: newMember.AccessLevel,
-				ExpiresAt:   newMember.ExpiresAt,
-			}}
-
 		// Check if member in tf config already exists on gitlab
 		oldMember, index, err := findGroupMember(*newMember.UserID, oldMembers)
 
 		// If it doesn't exist it must be added
 		if err != nil {
-			groupMembersToAdd = append(groupMembersToAdd, newGroupMemberOptions)
+			groupMembersToAdd = append(groupMembersToAdd, newMember)
 			continue
 		}
 
 		// If it exists but there's a change, it must be updated
 		if (*newMember.AccessLevel != oldMember.AccessLevel) ||
-			(oldMember.ExpiresAt != nil && (*newMember.ExpiresAt != oldMember.ExpiresAt.String()) ||
-				(oldMember.ExpiresAt == nil && *newMember.ExpiresAt != "")) {
-			groupMembersToUpdate = append(groupMembersToUpdate, newGroupMemberOptions)
+			(oldMember.ExpiresAt != nil &&
+				*newMember.ExpiresAt !=
+					oldMember.ExpiresAt.String() ||
+				(oldMember.ExpiresAt == nil &&
+					*newMember.ExpiresAt != "")) {
+			groupMembersToUpdate = append(groupMembersToUpdate, newMember)
 		}
 
 		// Remove existing member from existing members list
@@ -304,4 +323,28 @@ func flattenGitlabGroupMembers(groupMembers []*gitlab.GroupMember) []interface{}
 	}
 
 	return groupMembersList
+}
+
+func suppressDiffMembersAccessLevel() schema.SchemaDiffSuppressFunc {
+	return func(k, old, new string, d *schema.ResourceData) bool {
+		// If access_level is not defined at members' level, use global
+		// access_level for comparison
+		if new == "" {
+			return d.Get("access_level") == old
+		}
+
+		return false
+	}
+}
+
+func suppressDiffMembersExpiresAt() schema.SchemaDiffSuppressFunc {
+	return func(k, old, new string, d *schema.ResourceData) bool {
+		// If expires_at is not defined at members' level, use global
+		// expires_at for comparison
+		if new == "" {
+			return d.Get("expires_at") == old
+		}
+
+		return false
+	}
 }
