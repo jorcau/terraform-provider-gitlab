@@ -132,7 +132,8 @@ func resourceGitlabGroupMembersRead(d *schema.ResourceData, meta interface{}) er
 	if err != nil {
 		if resp.StatusCode == 404 {
 			d.SetId("")
-			return fmt.Errorf("[WARN] removing all group members in %s from state because group no longer exists in gitlab", d.Id())
+			return fmt.Errorf("[WARN] removing all group members in "+
+				"%s from state because group no longer exists in gitlab", d.Id())
 		}
 		return err
 	}
@@ -147,18 +148,19 @@ func resourceGitlabGroupMembersUpdate(d *schema.ResourceData, meta interface{}) 
 	client := meta.(*gitlab.Client)
 
 	groupID := d.Get("group_id")
-	oldMembers, resp, err := client.Groups.ListGroupMembers(groupID, nil)
+	currentMembers, resp, err := client.Groups.ListGroupMembers(groupID, nil)
 	if err != nil {
 		if resp.StatusCode == 404 {
 			d.SetId("")
-			return fmt.Errorf("[WARN] removing all group members in %s from state because group no longer exists in gitlab", groupID)
+			return fmt.Errorf("[WARN] removing all group members in "+
+				"%s from state because group no longer exists in gitlab", groupID)
 		}
 		return err
 	}
 
-	newMembers := expandGitlabAddGroupMembersOptions(d)
+	targetMembers := expandGitlabAddGroupMembersOptions(d)
 
-	groupMembersToAdd, groupMembersToUpdate, groupMemberToDelete := getGroupMembersUpdates(newMembers, oldMembers)
+	groupMembersToAdd, groupMembersToUpdate, groupMemberToDelete := getGroupMembersUpdates(targetMembers, currentMembers)
 
 	// Create new group members
 	for _, groupMember := range groupMembersToAdd {
@@ -187,11 +189,6 @@ func resourceGitlabGroupMembersUpdate(d *schema.ResourceData, meta interface{}) 
 	// Remove group members not present in tf config
 	for _, groupMember := range groupMemberToDelete {
 		log.Printf("[DEBUG] delete group member %d from %s", groupMember.ID, groupID)
-
-		if groupMember.AccessLevel == accessLevelID["owner"] {
-			log.Printf("[WARN] can't delete group member with \"owner\" access level")
-			continue
-		}
 
 		_, err := client.GroupMembers.RemoveGroupMember(groupID, groupMember.ID)
 		if err != nil {
@@ -269,40 +266,40 @@ func findGroupMember(id int, groupMembers []*gitlab.GroupMember) (gitlab.GroupMe
 	return gitlab.GroupMember{}, 0, fmt.Errorf("Couldn't find group member: %d", id)
 }
 
-func getGroupMembersUpdates(newMembers []*gitlab.AddGroupMemberOptions,
-	oldMembers []*gitlab.GroupMember) ([]*gitlab.AddGroupMemberOptions,
+func getGroupMembersUpdates(targetMembers []*gitlab.AddGroupMemberOptions,
+	currentMembers []*gitlab.GroupMember) ([]*gitlab.AddGroupMemberOptions,
 	[]*gitlab.AddGroupMemberOptions, []*gitlab.GroupMember) {
 	groupMembersToUpdate := []*gitlab.AddGroupMemberOptions{}
 	groupMembersToAdd := []*gitlab.AddGroupMemberOptions{}
 
 	// Iterate through all members in tf config
-	for _, newMember := range newMembers {
+	for _, targetMember := range targetMembers {
 		// Check if member in tf config already exists on gitlab
-		oldMember, index, err := findGroupMember(*newMember.UserID, oldMembers)
+		currentMember, index, err := findGroupMember(*targetMember.UserID, currentMembers)
 
 		// If it doesn't exist it must be added
 		if err != nil {
-			groupMembersToAdd = append(groupMembersToAdd, newMember)
+			groupMembersToAdd = append(groupMembersToAdd, targetMember)
 			continue
 		}
 
 		// If it exists but there's a change, it must be updated
-		if (*newMember.AccessLevel != oldMember.AccessLevel) ||
-			(oldMember.ExpiresAt != nil &&
-				*newMember.ExpiresAt !=
-					oldMember.ExpiresAt.String() ||
-				(oldMember.ExpiresAt == nil &&
-					*newMember.ExpiresAt != "")) {
-			groupMembersToUpdate = append(groupMembersToUpdate, newMember)
+		if (*targetMember.AccessLevel != currentMember.AccessLevel) ||
+			(currentMember.ExpiresAt != nil &&
+				*targetMember.ExpiresAt !=
+					currentMember.ExpiresAt.String() ||
+				(currentMember.ExpiresAt == nil &&
+					*targetMember.ExpiresAt != "")) {
+			groupMembersToUpdate = append(groupMembersToUpdate, targetMember)
 		}
 
-		// Remove existing member from existing members list
-		oldMembers = append(oldMembers[:index], oldMembers[index+1:]...)
+		// Remove current member from current members list
+		currentMembers = append(currentMembers[:index], currentMembers[index+1:]...)
 	}
 
-	// Members still present in existing members list must be removed
+	// Members still present in current members list must be removed
 
-	return groupMembersToAdd, groupMembersToUpdate, oldMembers
+	return groupMembersToAdd, groupMembersToUpdate, currentMembers
 }
 
 func flattenGitlabGroupMembers(groupMembers []*gitlab.GroupMember) []interface{} {
