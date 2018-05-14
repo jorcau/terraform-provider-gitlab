@@ -15,7 +15,23 @@ var accessLevelNameToValue = map[string]gitlab.AccessLevelValue{
 	"owner":     gitlab.OwnerPermission,
 }
 
+var accessLevelID = map[string]gitlab.AccessLevelValue{
+	"guest":     gitlab.GuestPermissions,
+	"reporter":  gitlab.ReporterPermissions,
+	"developer": gitlab.DeveloperPermissions,
+	"master":    gitlab.MasterPermissions,
+	"owner":     gitlab.OwnerPermission,
+}
+
 var accessLevelValueToName = map[gitlab.AccessLevelValue]string{
+	gitlab.GuestPermissions:     "guest",
+	gitlab.ReporterPermissions:  "reporter",
+	gitlab.DeveloperPermissions: "developer",
+	gitlab.MasterPermissions:    "master",
+	gitlab.OwnerPermission:      "owner",
+}
+
+var accessLevel = map[gitlab.AccessLevelValue]string{
 	gitlab.GuestPermissions:     "guest",
 	gitlab.ReporterPermissions:  "reporter",
 	gitlab.DeveloperPermissions: "developer",
