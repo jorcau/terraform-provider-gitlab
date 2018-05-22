@@ -324,9 +324,9 @@ func flattenGitlabGroupMembers(groupMembers []*gitlab.GroupMember) []interface{}
 			values["email"] = groupMember.Email
 		}
 
-		// Prepend in order to get group members from the first added
+		// Append in order to get group members from the first added
 		// to the last (and get cleaner plan diff)
-		groupMembersList = append([]interface{}{values}, groupMembersList...)
+		groupMembersList = append(groupMembersList, values)
 	}
 
 	return groupMembersList
