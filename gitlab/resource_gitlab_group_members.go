@@ -208,7 +208,7 @@ func resourceGitlabGroupMembersDelete(d *schema.ResourceData, meta interface{}) 
 	for _, groupMember := range groupMembers {
 		log.Printf("[DEBUG] delete group member %d from %s", groupMember.UserID, groupID)
 
-		if *groupMember.AccessLevel == accessLevelID["owner"] {
+		if *groupMember.AccessLevel == accessLevelNameToValue["owner"] {
 			log.Printf("[WARN] can't delete group member with \"owner\" access level")
 			continue
 		}
@@ -238,10 +238,10 @@ func expandGitlabAddGroupMembersOptions(d *schema.ResourceData) []*gitlab.AddGro
 
 		if val := data["access_level"].(string); val != "" {
 			groupMemberOption.AccessLevel = gitlab.AccessLevel(
-				accessLevelID[strings.ToLower(val)])
+				accessLevelNameToValue[strings.ToLower(val)])
 		} else {
 			groupMemberOption.AccessLevel = gitlab.AccessLevel(
-				accessLevelID[strings.ToLower(d.Get("access_level").(string))])
+				accessLevelNameToValue[strings.ToLower(d.Get("access_level").(string))])
 		}
 
 		if val := data["expires_at"].(string); val != "" {
@@ -308,7 +308,7 @@ func flattenGitlabGroupMembers(groupMembers []*gitlab.GroupMember) []interface{}
 	for _, groupMember := range groupMembers {
 		values := map[string]interface{}{
 			"id":           groupMember.ID,
-			"access_level": accessLevel[groupMember.AccessLevel],
+			"access_level": accessLevelValueToName[groupMember.AccessLevel],
 			"username":     groupMember.Username,
 			"name":         groupMember.Name,
 			"state":        groupMember.State,

@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-var accessLevelID = map[string]gitlab.AccessLevelValue{
+var accessLevelNameToValue = map[string]gitlab.AccessLevelValue{
 	"guest":     gitlab.GuestPermissions,
 	"reporter":  gitlab.ReporterPermissions,
 	"developer": gitlab.DeveloperPermissions,
@@ -18,7 +18,7 @@ var accessLevelID = map[string]gitlab.AccessLevelValue{
 	"owner":     gitlab.OwnerPermission,
 }
 
-var accessLevel = map[gitlab.AccessLevelValue]string{
+var accessLevelValueToName = map[gitlab.AccessLevelValue]string{
 	gitlab.GuestPermissions:     "guest",
 	gitlab.ReporterPermissions:  "reporter",
 	gitlab.DeveloperPermissions: "developer",
