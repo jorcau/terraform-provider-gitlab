@@ -111,7 +111,6 @@ func resourceGitlabServiceCreate(d *schema.ResourceData, meta interface{}) error
 	project := d.Get("project").(string)
 	name := d.Get("name").(string)
 	properties := d.Get("properties").([]interface{})
-	commonOptions := expandGitlabServiceCommonOptions(d)
 
 	log.Printf("[DEBUG] Create %s Gitlab service", name)
 
@@ -119,12 +118,17 @@ func resourceGitlabServiceCreate(d *schema.ResourceData, meta interface{}) error
 
 	switch name {
 	case "slack":
-		slackOptions, err := expandSlackOptions(properties)
-		slackOptions.SetGitlabServiceOptions = *commonOptions
+		slackOptions, err := expandSlackOptions(d, properties)
 		if err != nil {
 			return err
 		}
 		_, setServiceErr = client.Services.SetSlackService(project, slackOptions)
+	case "jira":
+		jiraOptions, err := expandJiraOptions(properties)
+		if err != nil {
+			return err
+		}
+		_, setServiceErr = client.Services.SetJiraService(project, jiraOptions)
 	default:
 		return serviceErrorMsg("name", name)
 	}
@@ -162,8 +166,15 @@ func resourceGitlabServiceRead(d *schema.ResourceData, meta interface{}) error {
 		if err != nil {
 			return handleGetServiceError(d, name, response.StatusCode, err)
 		}
-		d.Set("properties", flattenSlackOptions(slackService))
+		flattenSlackOptions(d, slackService)
 		service = slackService.Service
+	case "jira":
+		jiraService, response, err := client.Services.GetJiraService(project)
+		if err != nil {
+			return handleGetServiceError(d, name, response.StatusCode, err)
+		}
+		d.Set("properties", flattenJiraOptions(jiraService))
+		service = jiraService.Service
 	default:
 		return serviceErrorMsg("name", name)
 	}
@@ -202,6 +213,8 @@ func resourceGitlabServiceDelete(d *schema.ResourceData, meta interface{}) error
 	switch name {
 	case "slack":
 		_, err = client.Services.DeleteSlackService(project)
+	case "jira":
+		_, err = client.Services.DeleteJiraService(project)
 	default:
 		return serviceErrorMsg("name", name)
 	}
@@ -209,9 +222,9 @@ func resourceGitlabServiceDelete(d *schema.ResourceData, meta interface{}) error
 	return err
 }
 
-func expandSlackOptions(d []interface{}) (*gitlab.SetSlackServiceOptions, error) {
+func expandSlackOptions(d *schema.ResourceData, data []interface{}) (*gitlab.SetSlackServiceOptions, error) {
 	setSlackServiceOptions := gitlab.SetSlackServiceOptions{}
-	properties := d[0].(map[string]interface{})
+	properties := data[0].(map[string]interface{})
 
 	// Check required properties are set and valid
 	requiredProperties := []string{"webhook"}
@@ -233,52 +246,82 @@ func expandSlackOptions(d []interface{}) (*gitlab.SetSlackServiceOptions, error)
 	setSlackServiceOptions.WebHook = gitlab.String(properties["webhook"].(string))
 
 	// Set optional properties
-	if properties["username"] != nil {
-		setSlackServiceOptions.Username = gitlab.String(properties["username"].(string))
+	if val := d.Get("username"); val != nil {
+		setSlackServiceOptions.Username = gitlab.String(val.(string))
 	}
-	if properties["channel"] != nil {
-		setSlackServiceOptions.Channel = gitlab.String(properties["channel"].(string))
+	if val := d.Get("channel"); val != nil {
+		setSlackServiceOptions.Channel = gitlab.String(val.(string))
 	}
-	if properties["notify_only_broken_pipelines"] != nil {
-		val, _ := strconv.ParseBool(properties["notify_only_broken_pipelines"].(string))
-		setSlackServiceOptions.NotifyOnlyBrokenPipelines = gitlab.Bool(val)
+	if val := d.Get("notify_only_broken_pipelines"); val != nil {
+		value, _ := strconv.ParseBool(val.(string))
+		setSlackServiceOptions.NotifyOnlyBrokenPipelines = gitlab.Bool(value)
 	}
-	if properties["notify_only_default_branch"] != nil {
-		val, _ := strconv.ParseBool(properties["notify_only_default_branch"].(string))
-		setSlackServiceOptions.NotifyOnlyDefaultBranch = gitlab.Bool(val)
+	if val := d.Get("notify_only_default_branch"); val != nil {
+		value, _ := strconv.ParseBool(val.(string))
+		setSlackServiceOptions.NotifyOnlyDefaultBranch = gitlab.Bool(value)
 	}
-	if properties["push_channel"] != nil {
-		setSlackServiceOptions.PushChannel = gitlab.String(properties["push_channel"].(string))
+	if val := d.Get("push_channel"); val != nil {
+		setSlackServiceOptions.PushChannel = gitlab.String(val.(string))
 	}
-	if properties["issue_channel"] != nil {
-		setSlackServiceOptions.IssueChannel = gitlab.String(properties["issue_channel"].(string))
+	if val := d.Get("issue_channel"); val != nil {
+		setSlackServiceOptions.IssueChannel = gitlab.String(val.(string))
 	}
-	if properties["confidential_issue_channel"] != nil {
-		setSlackServiceOptions.ConfidentialIssueChannel = gitlab.String(properties["confidential_issue_channel"].(string))
+	if val := d.Get("confidential_issue_channel"); val != nil {
+		setSlackServiceOptions.ConfidentialIssueChannel = gitlab.String(val.(string))
 	}
-	if properties["merge_request_channel"] != nil {
-		setSlackServiceOptions.MergeRequestChannel = gitlab.String(properties["merge_request_channel"].(string))
+	if val := d.Get("merge_request_channel"); val != nil {
+		setSlackServiceOptions.MergeRequestChannel = gitlab.String(val.(string))
 	}
-	if properties["note_channel"] != nil {
-		setSlackServiceOptions.NoteChannel = gitlab.String(properties["note_channel"].(string))
+	if val := d.Get("note_channel"); val != nil {
+		setSlackServiceOptions.NoteChannel = gitlab.String(val.(string))
 	}
+	// https://gitlab.com/gitlab-org/gitlab-ce/issues/49730
 	// if properties["confidential_note_channel"] != nil {
 	// 	setSlackServiceOptions.ConfidentialNoteChannel = gitlab.String(properties["confidential_note_channel"].(string))
 	// }
-	if properties["tag_push_channel"] != nil {
-		setSlackServiceOptions.TagPushChannel = gitlab.String(properties["tag_push_channel"].(string))
+	if val := d.Get("tag_push_channel"); val != nil {
+		setSlackServiceOptions.TagPushChannel = gitlab.String(val.(string))
 	}
-	if properties["pipeline_channel"] != nil {
-		setSlackServiceOptions.PipelineChannel = gitlab.String(properties["pipeline_channel"].(string))
+	if val := d.Get("pipeline_channel"); val != nil {
+		setSlackServiceOptions.PipelineChannel = gitlab.String(val.(string))
 	}
-	if properties["wiki_page_channel"] != nil {
-		setSlackServiceOptions.WikiPageChannel = gitlab.String(properties["wiki_page_channel"].(string))
+	if val := d.Get("wiki_page_channel"); val != nil {
+		setSlackServiceOptions.WikiPageChannel = gitlab.String(val.(string))
+	}
+
+	// Set other optional parameters
+	if val := d.Get("push_events"); val != nil {
+		setSlackServiceOptions.PushEvents = gitlab.Bool(val.(bool))
+	}
+	if val := d.Get("issues_events"); val != nil {
+		setSlackServiceOptions.IssuesEvents = gitlab.Bool(val.(bool))
+	}
+	if val := d.Get("confidential_issues_events"); val != nil {
+		setSlackServiceOptions.ConfidentialIssuesEvents = gitlab.Bool(val.(bool))
+	}
+	if val := d.Get("merge_requests_events"); val != nil {
+		setSlackServiceOptions.MergeRequestsEvents = gitlab.Bool(val.(bool))
+	}
+	if val := d.Get("tag_push_events"); val != nil {
+		setSlackServiceOptions.TagPushEvents = gitlab.Bool(val.(bool))
+	}
+	if val := d.Get("note_events"); val != nil {
+		setSlackServiceOptions.NoteEvents = gitlab.Bool(val.(bool))
+	}
+	if val := d.Get("confidential_note_events"); val != nil {
+		setSlackServiceOptions.ConfidentialNoteEvents = gitlab.Bool(val.(bool))
+	}
+	if val := d.Get("pipeline_events"); val != nil {
+		setSlackServiceOptions.PipelineEvents = gitlab.Bool(val.(bool))
+	}
+	if val := d.Get("wiki_page_events"); val != nil {
+		setSlackServiceOptions.WikiPageEvents = gitlab.Bool(val.(bool))
 	}
 
 	return &setSlackServiceOptions, nil
 }
 
-func flattenSlackOptions(service *gitlab.SlackService) []interface{} {
+func flattenSlackOptions(d *schema.ResourceData, service *gitlab.SlackService) []interface{} {
 	values := []interface{}{}
 
 	slackOptions := map[string]interface{}{}
@@ -301,38 +344,53 @@ func flattenSlackOptions(service *gitlab.SlackService) []interface{} {
 	return values
 }
 
-func expandGitlabServiceCommonOptions(d *schema.ResourceData) *gitlab.SetGitlabServiceOptions {
-	commonOptions := gitlab.SetGitlabServiceOptions{}
+func expandJiraOptions(d []interface{}) (*gitlab.SetJiraServiceOptions, error) {
+	setJiraServiceOptions := gitlab.SetJiraServiceOptions{}
+	properties := d[0].(map[string]interface{})
 
-	if val, ok := d.GetOk("push_events"); ok {
-		commonOptions.PushEvents = gitlab.Bool(val.(bool))
+	// Check required properties are set and valid
+	requiredProperties := []string{"url", "project_key", "username", "password"}
+	missingProperties := []string{}
+	for i := 0; i < len(requiredProperties); i++ {
+		if properties[requiredProperties[i]] == nil {
+			missingProperties = append(missingProperties, requiredProperties[i])
+		}
 	}
-	if val, ok := d.GetOk("issues_events"); ok {
-		commonOptions.IssuesEvents = gitlab.Bool(val.(bool))
+	if len(missingProperties) > 0 {
+		return nil, fmt.Errorf("[ERROR] Following properties are required: %s", strings.Join(missingProperties, ", "))
 	}
-	if val, ok := d.GetOk("confidential_issues_events"); ok {
-		commonOptions.ConfidentialIssuesEvents = gitlab.Bool(val.(bool))
-	}
-	if val, ok := d.GetOk("merge_requests_events"); ok {
-		commonOptions.MergeRequestsEvents = gitlab.Bool(val.(bool))
-	}
-	if val, ok := d.GetOk("tag_push_events"); ok {
-		commonOptions.TagPushEvents = gitlab.Bool(val.(bool))
-	}
-	if val, ok := d.GetOk("note_events"); ok {
-		commonOptions.NoteEvents = gitlab.Bool(val.(bool))
-	}
-	if val, ok := d.GetOk("confidential_note_events"); ok {
-		commonOptions.ConfidentialNoteEvents = gitlab.Bool(val.(bool))
-	}
-	if val, ok := d.GetOk("pipeline_events"); ok {
-		commonOptions.PipelineEvents = gitlab.Bool(val.(bool))
-	}
-	if val, ok := d.GetOk("wiki_page_events"); ok {
-		commonOptions.WikiPageEvents = gitlab.Bool(val.(bool))
+	_, err := url.ParseRequestURI(properties["url"].(string))
+	if err != nil {
+		return nil, fmt.Errorf("[ERROR] 'url' propertie must be a valid URL")
 	}
 
-	return &commonOptions
+	// Set required properties
+	setJiraServiceOptions.URL = gitlab.String(properties["url"].(string))
+	setJiraServiceOptions.ProjectKey = gitlab.String(properties["project_key"].(string))
+	setJiraServiceOptions.Username = gitlab.String(properties["username"].(string))
+	setJiraServiceOptions.Password = gitlab.String(properties["password"].(string))
+
+	// Set optional properties
+	if properties["jira_issue_transition_id"] != nil {
+		setJiraServiceOptions.JiraIssueTransitionID = gitlab.String(properties["jira_issue_transition_id"].(string))
+	}
+
+	return &setJiraServiceOptions, nil
+}
+
+func flattenJiraOptions(service *gitlab.JiraService) []interface{} {
+	values := []interface{}{}
+
+	jiraOptions := map[string]interface{}{}
+	jiraOptions["url"] = service.Properties.URL
+	jiraOptions["project_key"] = service.Properties.ProjectKey
+	jiraOptions["username"] = service.Properties.Username
+	jiraOptions["password"] = service.Properties.Password
+	jiraOptions["jira_issue_transition_id"] = service.Properties.JiraIssueTransitionID
+
+	values = append(values, jiraOptions)
+
+	return values
 }
 
 func serviceErrorMsg(errType string, name string) error {
