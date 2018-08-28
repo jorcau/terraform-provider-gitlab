@@ -91,16 +91,8 @@ func resourceGitlabGroupMembersCreate(d *schema.ResourceData, meta interface{}) 
 	for _, groupMember := range groupMembers {
 		log.Printf("[DEBUG] create gitlab group member %d in %s", groupMember.UserID, groupID)
 
-		// Group owner is already existing and must be updated, not added
+		// Group owner exists and can't be updated
 		if groupOwnerID == *groupMember.UserID {
-			_, _, err := client.GroupMembers.EditGroupMember(groupID, *groupMember.UserID,
-				&gitlab.EditGroupMemberOptions{
-					AccessLevel: groupMember.AccessLevel,
-					ExpiresAt:   groupMember.ExpiresAt,
-				})
-			if err != nil {
-				return err
-			}
 			continue
 		}
 

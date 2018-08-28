@@ -2,6 +2,7 @@ package gitlab
 
 import (
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/hashicorp/terraform/helper/acctest"
@@ -10,20 +11,23 @@ import (
 
 func TestAccGitlabGroupMembers_basic(t *testing.T) {
 	resourceName := "gitlab_group_members.test-group-members"
+	ownerID := os.Getenv("GITLAB_USER_ID")
 	rInt := acctest.RandInt()
+
+	skipIfEnvNotSet(t, "GITLAB_USER_ID")
 
 	resource.Test(t, resource.TestCase{PreCheck: func() { testAccPreCheck(t) },
 		Providers: testAccProviders,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccGitlabGroupMembersConfig(rInt),
+				Config: testAccGitlabGroupMembersConfig(rInt, ownerID),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "members.#", "2"),
 					resource.TestCheckResourceAttr(resourceName, "members.1.access_level", "developer"),
 				),
 			},
 			{
-				Config: testAccGitlabGroupMembersUpdateConfig(rInt),
+				Config: testAccGitlabGroupMembersUpdateConfig(rInt, ownerID),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "members.#", "2"),
 					resource.TestCheckResourceAttr(resourceName, "members.1.access_level", "guest"),
@@ -31,7 +35,7 @@ func TestAccGitlabGroupMembers_basic(t *testing.T) {
 				),
 			},
 			{
-				Config: testAccGitlabGroupMembersConfig(rInt),
+				Config: testAccGitlabGroupMembersConfig(rInt, ownerID),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "members.#", "2"),
 					resource.TestCheckResourceAttr(resourceName, "members.1.access_level", "developer"),
@@ -42,16 +46,16 @@ func TestAccGitlabGroupMembers_basic(t *testing.T) {
 	})
 }
 
-func testAccGitlabGroupMembersConfig(rInt int) string {
+func testAccGitlabGroupMembersConfig(rInt int, ownerID string) string {
 	return fmt.Sprintf(`
 resource "gitlab_group_members" "test-group-members" {
 	group_id       = "${gitlab_group.test-group.id}"
-	group_owner_id = 2
+	group_owner_id = %s
 	access_level   = "developer"
 
   members  = [
 		{
-      id           = 2
+      id           = %s
       access_level = "owner"
 		},
     {
@@ -73,19 +77,19 @@ resource "gitlab_user" "test-user" {
   password = "test%dtt"
   email    = "listest%d@ssss.com"
 }
-`, rInt, rInt, rInt, rInt, rInt, rInt)
+`, ownerID, ownerID, rInt, rInt, rInt, rInt, rInt, rInt)
 }
 
-func testAccGitlabGroupMembersUpdateConfig(rInt int) string {
+func testAccGitlabGroupMembersUpdateConfig(rInt int, ownerID string) string {
 	return fmt.Sprintf(`
 resource "gitlab_group_members" "test-group-members" {
 	group_id       = "${gitlab_group.test-group.id}"
-	group_owner_id = 2
+	group_owner_id = %s
 	access_level   = "guest"
 
   members  = [
 		{
-      id           = 2
+      id           = %s
       access_level = "owner"
 		},
     {
@@ -108,5 +112,13 @@ resource "gitlab_user" "test-user" {
   password = "test%dtt"
   email    = "listest%d@ssss.com"
 }
-`, rInt, rInt, rInt, rInt, rInt, rInt)
+`, ownerID, ownerID, rInt, rInt, rInt, rInt, rInt, rInt)
+}
+
+func skipIfEnvNotSet(t *testing.T, envs ...string) {
+	for _, k := range envs {
+		if os.Getenv(k) == "" {
+			t.Skipf("Environment variable %s must be set", k)
+		}
+	}
 }
