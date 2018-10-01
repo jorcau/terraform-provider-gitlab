@@ -28,7 +28,7 @@ func resourceGitlabGroupMembers() *schema.Resource {
 			},
 			"group_owner_id": {
 				Type:     schema.TypeInt,
-				Optional: true,
+				Required: true,
 			},
 			"access_level": {
 				Type:     schema.TypeString,
