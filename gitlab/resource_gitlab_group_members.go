@@ -128,19 +128,8 @@ func resourceGitlabGroupMembersRead(d *schema.ResourceData, meta interface{}) er
 
 	log.Printf("[DEBUG] read group members from group %s", d.Id())
 
-	listOptions := &gitlab.ListGroupMembersOptions{
-		ListOptions: gitlab.ListOptions{
-			PerPage: 100000,
-		},
-	}
-
-	groupMembers, resp, err := client.Groups.ListGroupMembers(d.Id(), listOptions)
+	groupMembers, err := listGitlabGroupMembers(d, client)
 	if err != nil {
-		if resp.StatusCode == 404 {
-			d.SetId("")
-			return fmt.Errorf("[WARN] removing all group members in "+
-				"%s from state because group no longer exists in gitlab", d.Id())
-		}
 		return err
 	}
 
@@ -154,13 +143,9 @@ func resourceGitlabGroupMembersUpdate(d *schema.ResourceData, meta interface{}) 
 	client := meta.(*gitlab.Client)
 
 	groupID := d.Get("group_id")
-	currentMembers, resp, err := client.Groups.ListGroupMembers(groupID, nil)
+
+	currentMembers, err := listGitlabGroupMembers(d, client)
 	if err != nil {
-		if resp.StatusCode == 404 {
-			d.SetId("")
-			return fmt.Errorf("[WARN] removing all group members in "+
-				"%s from state because group no longer exists in gitlab", groupID)
-		}
 		return err
 	}
 
@@ -228,6 +213,35 @@ func resourceGitlabGroupMembersDelete(d *schema.ResourceData, meta interface{}) 
 	d.SetId("")
 
 	return nil
+}
+
+func listGitlabGroupMembers(d *schema.ResourceData, client *gitlab.Client) ([]*gitlab.GroupMember, error) {
+	groupMembers := []*gitlab.GroupMember{}
+
+	listOptions := &gitlab.ListGroupMembersOptions{
+		ListOptions: gitlab.ListOptions{},
+	}
+
+	for i := 1; ; i++ {
+		listOptions.ListOptions.Page = i
+		groupMembersPart, resp, err := client.Groups.ListGroupMembers(d.Id(), listOptions)
+		if err != nil {
+			if resp.StatusCode == 404 {
+				d.SetId("")
+				err = fmt.Errorf("[WARN] removing all group members in "+
+					"%s from state because group no longer exists in gitlab", d.Id())
+			}
+			return nil, err
+		}
+
+		groupMembers = append(groupMembers, groupMembersPart...)
+
+		if i >= resp.TotalPages {
+			break
+		}
+	}
+
+	return groupMembers, nil
 }
 
 func expandGitlabAddGroupMembersOptions(d *schema.ResourceData) []*gitlab.AddGroupMemberOptions {
