@@ -493,12 +493,12 @@
 			"versionExact": "v0.10.0"
 		},
 		{
-			"checksumSHA1": "qsI85GvNukAIUv+kcy8CdgP7um8=",
+			"checksumSHA1": "nEC56vB6M60BJtGPe+N9rziHqLg=",
 			"path": "github.com/hashicorp/terraform/helper/validation",
-			"revision": "2041053ee9444fa8175a298093b55a89586a1823",
-			"revisionTime": "2017-08-02T18:39:14Z",
-			"version": "v0.10.0",
-			"versionExact": "v0.10.0"
+			"revision": "ac4fff416318bf0915a0ab80e062a99ef3724334",
+			"revisionTime": "2018-12-14T21:18:58Z",
+			"version": "=v0.11.11",
+			"versionExact": "v0.11.11"
 		},
 		{
 			"checksumSHA1": "yFWmdS6yEJZpRJzUqd/mULqCYGk=",
@@ -715,5 +715,5 @@
 			"versionExact": "v1.6.1"
 		}
 	],
-	"rootPath": "github.com/terraform-providers/terraform-provider-gitlab"
+	"rootPath": "github.com/claranet/terraform-provider-gitlab"
 }
