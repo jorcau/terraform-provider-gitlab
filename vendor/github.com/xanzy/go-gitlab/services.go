@@ -394,6 +394,7 @@ type JiraServiceProperties struct {
 	Username              *string `url:"username,omitempty" json:"username,omitempty" `
 	Password              *string `url:"password,omitempty" json:"password,omitempty" `
 	JiraIssueTransitionID *int    `url:"jira_issue_transition_id,omitempty" json:"jira_issue_transition_id,omitempty"`
+	MergeRequestsEvents   *bool   `url:"merge_requests_events,omitempty" json:"merge_requests_events,omitempty" `
 }
 
 // GetJiraService gets Jira service settings for a project.

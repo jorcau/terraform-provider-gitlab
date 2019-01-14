@@ -46,7 +46,8 @@ func resourceGitlabServiceJira() *schema.Resource {
 			},
 			"project_key": {
 				Type:     schema.TypeString,
-				Required: true,
+				Optional: true,
+				Default:  "",
 			},
 			"username": {
 				Type:     schema.TypeString,
@@ -58,6 +59,10 @@ func resourceGitlabServiceJira() *schema.Resource {
 			},
 			"jira_issue_transition_id": {
 				Type:     schema.TypeInt,
+				Optional: true,
+			},
+			"merge_requests_events": {
+				Type:     schema.TypeBool,
 				Optional: true,
 			},
 		},
@@ -153,6 +158,9 @@ func expandJiraOptions(d *schema.ResourceData) (*gitlab.SetJiraServiceOptions, e
 	// Set optional properties
 	if val := d.Get("jira_issue_transition_id"); val != nil {
 		setJiraServiceOptions.JiraIssueTransitionID = gitlab.Int(val.(int))
+	}
+	if val := d.Get("merge_requests_events"); val != nil {
+		setJiraServiceOptions.MergeRequestsEvents = gitlab.Bool(val.(bool))
 	}
 
 	return &setJiraServiceOptions, nil
