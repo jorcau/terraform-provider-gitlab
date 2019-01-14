@@ -57,6 +57,7 @@ func Provider() terraform.ResourceProvider {
 			"gitlab_project_membership": resourceGitlabProjectMembership(),
 			"gitlab_group_members":      resourceGitlabGroupMembers(),
 			"gitlab_service_slack":      resourceGitlabServiceSlack(),
+			"gitlab_service_jira":       resourceGitlabServiceJira(),
 		},
 
 		ConfigureFunc: providerConfigure,
