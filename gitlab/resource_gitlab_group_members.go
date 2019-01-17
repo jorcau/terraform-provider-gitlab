@@ -61,19 +61,11 @@ func resourceGitlabGroupMembers() *schema.Resource {
 							Optional:         true,
 							DiffSuppressFunc: suppressDiffMembersExpiresAt(),
 						},
-						"created_at": {
-							Type:     schema.TypeString,
-							Computed: true,
-						},
 						"username": {
 							Type:     schema.TypeString,
 							Computed: true,
 						},
 						"name": {
-							Type:     schema.TypeString,
-							Computed: true,
-						},
-						"email": {
 							Type:     schema.TypeString,
 							Computed: true,
 						},
@@ -336,12 +328,6 @@ func flattenGitlabGroupMembers(groupMembers []*gitlab.GroupMember) []interface{}
 
 		if groupMember.ExpiresAt != nil {
 			values["expires_at"] = groupMember.ExpiresAt.String()
-		}
-		if groupMember.CreatedAt != nil {
-			values["created_at"] = groupMember.CreatedAt.String()
-		}
-		if groupMember.Email != "" {
-			values["email"] = groupMember.Email
 		}
 
 		// Append in order to get group members from the first added
